@@ -1,0 +1,51 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Preparar llave de firma
+        env:
+          KS_B64: ${{ secrets.BS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "BS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Sin secreto BS_KEYSTORE_B64: el APK se firmará con llave de depuración."
+          fi
+
+      - name: Compilar release
+        env:
+          BS_KEYSTORE_PASSWORD: ${{ secrets.BS_KEYSTORE_PASSWORD }}
+          BS_KEY_ALIAS: ${{ secrets.BS_KEY_ALIAS }}
+          BS_KEY_PASSWORD: ${{ secrets.BS_KEY_PASSWORD }}
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Renombrar APK
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/*.apk "out/BovedaSegura-v1.0.${GITHUB_RUN_NUMBER}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BovedaSegura-APK
+          path: out/*.apk
