@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,6 +33,7 @@ jobs:
           if [ -n "$KS_B64" ]; then
             echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "BS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "BS_SIGNED=1" >> "$GITHUB_ENV"
           else
             echo "::warning::Sin secreto BS_KEYSTORE_B64: el APK se firmará con llave de depuración."
           fi
@@ -50,3 +54,11 @@ jobs:
         with:
           name: BovedaSegura-APK
           path: out/*.apk
+
+      - name: Publicar versión (solo si está firmada con la llave fija)
+        if: env.BS_SIGNED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v1.0.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" out/*.apk --title "Bóveda Segura $TAG" --notes "APK firmado. Instálalo encima de la versión anterior: tus datos se conservan."
