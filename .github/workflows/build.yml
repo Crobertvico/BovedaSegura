@@ -29,9 +29,13 @@ jobs:
       - name: Preparar llave de firma
         env:
           KS_B64: ${{ secrets.BS_KEYSTORE_B64 }}
+          BS_KEYSTORE_PASSWORD: ${{ secrets.BS_KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            CLEAN=$(printf '%s' "$KS_B64" | tr -d ' \r\n\t"')
+            echo "Largo del secreto BS_KEYSTORE_B64 sin espacios: ${#CLEAN} (esperado: 5728)"
+            printf '%s' "$CLEAN" | base64 -d > "$RUNNER_TEMP/release.jks" || { echo "::error::BS_KEYSTORE_B64 no es base64 válido (¿se copió incompleto?)"; exit 1; }
+            keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$BS_KEYSTORE_PASSWORD" > /dev/null || { echo "::error::La llave no abre con BS_KEYSTORE_PASSWORD"; exit 1; }
             echo "BS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "BS_SIGNED=1" >> "$GITHUB_ENV"
           else
